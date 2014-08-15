@@ -10,14 +10,25 @@ import java.awt.event.KeyEvent;
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
+import javax.swing.UIManager;
+import javax.swing.UnsupportedLookAndFeelException;
 
 @SuppressWarnings("serial")
 public class Main extends JFrame{
 	
+	static{
+		try {
+			UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+		} catch (ClassNotFoundException | InstantiationException
+				| IllegalAccessException | UnsupportedLookAndFeelException e) {
+			e.printStackTrace();
+		}
+	}
+	
 	GameBoard board=new GameBoard();
 	boolean stop=true;
 	
-	Computer comp=new EasyComputer();
+	Computer comp=new TrickyComputer();
 	
 	public Main() {
 		final Agent agent=new MonteCarloAI();
