@@ -1,0 +1,532 @@
+package com.nwgjb.pathfinder.ui;
+
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseMotionAdapter;
+import java.io.File;
+import java.io.IOException;
+
+import javax.swing.JCheckBoxMenuItem;
+import javax.swing.JFileChooser;
+import javax.swing.JFrame;
+import javax.swing.JMenu;
+import javax.swing.JMenuBar;
+import javax.swing.JMenuItem;
+import javax.swing.JOptionPane;
+import javax.swing.JRadioButtonMenuItem;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
+import javax.swing.filechooser.FileNameExtensionFilter;
+
+import com.nwgjb.pathfinder.model.Edge;
+import com.nwgjb.pathfinder.model.Model;
+import com.nwgjb.pathfinder.model.Node;
+import com.nwgjb.pathfinder.model.Path;
+import com.nwgjb.pathfinder.search.AStarSearch;
+import com.nwgjb.pathfinder.search.BreadthFirstSearch;
+import com.nwgjb.pathfinder.search.DepthFirstSearch;
+import com.nwgjb.pathfinder.search.Search;
+import com.nwgjb.pathfinder.tasks.TaskAdapter;
+import com.nwgjb.pathfinder.tasks.TaskGroup;
+import com.nwgjb.pathfinder.ui.ModelUI.EdgeDisplayMode;
+import com.nwgjb.pathfinder.util.MapFileTools;
+
+public class Pathfinder extends JFrame {
+	
+	private static final long serialVersionUID = 6549254443065750014L;
+	
+	static final BasicStroke stroke2=new BasicStroke(2);
+	
+	public static void main(String[] args){
+		new Pathfinder();
+	}
+	
+	private class SearchTask extends TaskAdapter{
+		
+		Search search;
+		Node start;
+		Node prevEnd;
+		boolean finished=true;
+		
+		public SearchTask(Search s, String name){
+			super(name);
+			search=s;
+		}
+		
+		@Override
+		public void onDeactivation(){
+			modelUI.clearPath();
+		}
+		
+		@Override
+		public void onDragStart(MouseEvent e){
+			finished=true;
+			prevEnd=null;
+			start=model.findNode(e.getX(), e.getY(), Double.MAX_VALUE);
+			prevEnd=start;
+			modelUI.clearPath();
+		}
+		
+		@Override
+		public void onDrag(MouseEvent e){
+			if(start==null)
+				return;
+			/* If the algorithm runs really slowly, we don't want to repeatedly try until the previous one finished */
+			if(!finished)
+				return;
+			Node end=model.findNode(e.getX(), e.getY(), Double.MAX_VALUE);
+			/* If the end node is not changed, we save energy */
+			if(prevEnd==end)
+				return;
+			prevEnd=end;
+			
+			finished=false;
+			Path p=search.search(model, start, end);
+			finished=true;
+			
+			modelUI.clearPath();
+			if(p!=null)
+				modelUI.addPath(p);
+		}
+		
+		@Override
+		public void onDragEnd(MouseEvent e){
+			if(start==null)
+				return;
+			Node end=model.findNode(e.getX(), e.getY(), Double.MAX_VALUE);
+			/* If the end node is not changed, we save energy */
+			if(prevEnd==end)
+				return;
+			Path p=search.search(model, start, end);
+			modelUI.clearPath();
+			if(p!=null)
+				modelUI.addPath(p);
+			start=null;
+		}
+		
+	}
+	
+	private class SpeedMarker extends TaskAdapter{
+		
+		double speed;
+		
+		public SpeedMarker(double s){
+			super(s+" km/h");
+			speed=s;
+		}
+		
+		@Override
+		public void onDragStart(MouseEvent e) {
+			Edge edge=model.findEdge(e.getX(), e.getY(), 10);
+			if(edge==null){
+				return;
+			}
+			edge.speed(speed);
+			modelUI.repaint();
+		}
+		
+	}
+	NavigationPanel panel=new NavigationPanel();
+	
+	private class Navigation extends TaskAdapter{
+		
+		Search search;
+		Node start;
+		Node prevEnd;
+		boolean finished=true;
+		
+		public void track(Edge e){
+			scaler.setOffset(0, 0);
+			scaler.setRotation(Math.atan((e.getNode2().x-e.getNode1().x)/(e.getNode2().y-e.getNode1().y))/Math.PI*180);
+			System.out.println(Math.atan((e.getNode2().x-e.getNode1().x)/(e.getNode2().y-e.getNode1().y))/Math.PI*180);
+			scaler.move(-(e.getNode1().x+e.getNode2().x)/2, -(e.getNode1().y+e.getNode2().y)/2);
+			
+			
+			scaler.repaint();
+		}
+		
+		public Navigation(Search s, String name){
+			super(name);
+			search=s;
+		}
+		
+		@Override
+		public void onActivation(){
+			panel.setPath(null);
+			panel.setVisible(true);
+		}
+		
+		@Override
+		public void onDeactivation(){
+			modelUI.clearPath();
+			panel.setVisible(false);
+		}
+		
+		@Override
+		public void onDragStart(MouseEvent e){
+			finished=true;
+			prevEnd=null;
+			start=model.findNode(e.getX(), e.getY(), Double.MAX_VALUE);
+			prevEnd=start;
+			modelUI.clearPath();
+		}
+		
+		@Override
+		public void onDrag(MouseEvent e){
+			if(start==null)
+				return;
+			/* If the algorithm runs really slowly, we don't want to repeatedly try until the previous one finished */
+			if(!finished)
+				return;
+			Node end=model.findNode(e.getX(), e.getY(), Double.MAX_VALUE);
+			
+			finished=false;
+			Path p=search.search(model, start, end);
+			finished=true;
+			
+			modelUI.clearPath();
+			if(p!=null)
+				modelUI.addPath(p);
+		}
+		
+		@Override
+		public void onDragEnd(MouseEvent e){
+			if(start==null)
+				return;
+			Node end=model.findNode(e.getX(), e.getY(), Double.MAX_VALUE);
+			/* If the end node is not changed, we save energy */
+			if(prevEnd==end)
+				return;
+			Path p=search.search(model, start, end);
+			modelUI.clearPath();
+			start=null;
+			if(p==null)return;
+			modelUI.addPath(p);
+			//track(p.get(0).getEdge(p.get(1)));
+			panel.setPath(p);
+			repaint();
+		}
+		
+	}
+	
+	ModelUI modelUI;
+	Model model;
+	TaskGroup tasks;
+	Scaler scaler;
+	
+	public Pathfinder(){
+		
+		tasks=new TaskGroup();
+		{
+			tasks.setDefault(new TaskAdapter("Move"){
+				double x;
+				double y;
+				
+				@Override
+				public void onDragStart(MouseEvent e){
+					x=e.getX();
+					y=e.getY();
+				}
+				
+				@Override
+				public void onDrag(MouseEvent e) {
+					scaler.move(e.getX()-x, e.getY()-y);
+				}
+			});
+		}
+		
+		JMenuBar menu=new JMenuBar();
+		{
+			JMenu file=new JMenu("File");
+			{
+				JMenuItem neu=new JMenuItem("New");
+				{
+					neu.addActionListener(new ActionListener(){@Override public void actionPerformed(ActionEvent e){
+						model=new Model();
+						modelUI.setModel(model);
+						modelUI.repaint();
+					}});
+				}
+				
+				JMenuItem open=new JMenuItem("Open");
+				{
+					open.addActionListener(new ActionListener(){@Override public void actionPerformed(ActionEvent e){onOpenMenuAction();}});
+				}
+				
+				JMenuItem save=new JMenuItem("Save");
+				{
+					save.addActionListener(new ActionListener(){@Override public void actionPerformed(ActionEvent e){onSaveMenuAction();}});
+				}
+				
+				file.add(open);
+				file.add(save);
+			}
+			JMenu edit=new JMenu("Edit");
+			{
+				final JCheckBoxMenuItem visible=new JCheckBoxMenuItem("Show Model");
+				{
+					visible.addChangeListener(new ChangeListener(){
+						@Override
+						public void stateChanged(ChangeEvent e) {
+							modelUI.setModelVisible(visible.isSelected());
+							modelUI.repaint();
+						}
+					});
+				}
+				
+				JRadioButtonMenuItem node=tasks.addRadioMenu(new TaskAdapter("Add Node"){
+					public void onDragStart(MouseEvent e) {
+						model.addNode(e.getX(), e.getY());
+						modelUI.repaint();
+					}
+				});
+				
+				JRadioButtonMenuItem path=tasks.addRadioMenu(new TaskAdapter("Add Path"){
+					Node start;
+					double x, y;
+					Painter painter=new Painter(){
+						@Override
+						public void paint(Graphics2D g) {
+							g.setColor(Color.BLACK);
+							g.setStroke(stroke2);
+							g.drawLine((int)start.x, (int)start.y, (int)x, (int)y);
+						}
+					};
+					
+					@Override
+					public void onDragStart(MouseEvent e) {
+						start=model.findNode(e.getX(), e.getY(), 10);
+						if(start!=null){
+							x=start.x;
+							y=start.y;
+							modelUI.setPainter(painter);
+						}
+					}
+
+					@Override
+					public void onDrag(MouseEvent e) {
+						if(start==null)return;
+						Node endNode=model.findNode(e.getX(), e.getY(), Double.MAX_VALUE);
+						if(endNode!=null&&endNode!=start&&!endNode.isReachable(start)){
+							x=endNode.x;
+							y=endNode.y;
+						}
+						modelUI.repaint();
+					}
+
+					@Override
+					public void onDragEnd(MouseEvent e) {
+						if(start==null)return;
+						Node endNode=model.findNode(e.getX(), e.getY(), Double.MAX_VALUE);
+						if(endNode!=null&&endNode!=start&&!endNode.isReachable(start)){
+							Edge edge=new Edge(start, endNode);
+							start.addEdge(edge);
+							endNode.addEdge(edge);
+						}
+						modelUI.setPainter(null);
+						modelUI.repaint();
+					}
+				});
+				
+				JRadioButtonMenuItem removePoint=tasks.addRadioMenu(new TaskAdapter("Remove Node"){
+					@Override
+					public void onDragStart(MouseEvent e) {
+						Node node=model.findNode(e.getX(), e.getY(), 10);
+						if(node==null){
+							return;
+						}
+						for(Edge edge:node.getEdges()){
+							Node n=edge.getNode(node);
+							n.removeEdge(edge);
+						}
+						model.removeNode(node);
+						modelUI.repaint();
+					}
+				});
+				
+				JRadioButtonMenuItem removeEdge=tasks.addRadioMenu(new TaskAdapter("Remove Path"){
+					@Override
+					public void onDragStart(MouseEvent e) {
+						Edge edge=model.findEdge(e.getX(), e.getY(), 10);
+						if(edge==null){
+							return;
+						}
+						edge.getNode1().removeEdge(edge);
+						modelUI.repaint();
+					}
+				});
+				
+				JRadioButtonMenuItem moveNode=tasks.addRadioMenu(new TaskAdapter("Move Node"){
+					Node start;
+					
+					@Override
+					public void onDragStart(MouseEvent e) {
+						start=model.findNode(e.getX(), e.getY(), 10);
+					}
+
+					@Override
+					public void onDrag(MouseEvent e) {
+						if(start==null)return;
+						start.x=e.getX();
+						start.y=e.getY();
+						modelUI.repaint();
+					}
+
+					@Override
+					public void onDragEnd(MouseEvent e) {
+						if(start==null)return;
+						start.x=e.getX();
+						start.y=e.getY();
+						for(Edge ed:start.getEdges()){
+							ed.updateCost();
+						}
+						modelUI.repaint();
+					}
+				});
+				
+				JMenu speed=new JMenu("Mark Speed");
+				{
+					speed.add(tasks.addRadioMenu(new SpeedMarker(10)));
+					speed.add(tasks.addRadioMenu(new SpeedMarker(20)));
+					speed.add(tasks.addRadioMenu(new SpeedMarker(30)));
+					speed.add(tasks.addRadioMenu(new SpeedMarker(40)));
+					speed.add(tasks.addRadioMenu(new SpeedMarker(50)));
+					speed.add(tasks.addRadioMenu(new SpeedMarker(60)));
+				}
+				
+				edit.add(visible);
+				edit.add(node);
+				edit.add(path);
+				edit.add(removePoint);
+				edit.add(removeEdge);
+				edit.add(moveNode);
+				edit.add(speed);
+			}
+			JMenu display=new JMenu("Display");
+			{
+				final JMenuItem edge=new JMenuItem("Edge: Black");
+				{
+					edge.addActionListener(new ActionListener() {
+						@Override
+						public void actionPerformed(ActionEvent e) {
+							EdgeDisplayMode dm=modelUI.getEdgeDisplayMode();
+							switch(dm){
+								case BLACK:dm=EdgeDisplayMode.SPEED_DEPEND;edge.setText("Edge: Depends on Speed");break;
+								default:dm=EdgeDisplayMode.BLACK;edge.setText("Edge: Black");break;
+							}
+							modelUI.setEdgeDisplayMode(dm);
+							modelUI.repaint();
+						}
+					});
+				}
+				display.add(edge);
+			}
+			JMenu search=new JMenu("Search");
+			{
+				JRadioButtonMenuItem breadth=tasks.addRadioMenu(new SearchTask(new BreadthFirstSearch(), "Breadth-first Search (Slow)"));
+				JRadioButtonMenuItem depth=tasks.addRadioMenu(new SearchTask(new DepthFirstSearch(), "Depth-first Search (Slow)"));
+				JRadioButtonMenuItem ds=tasks.addRadioMenu(new SearchTask(new AStarSearch(AStarSearch.DIJKSTRA), "Dijkstra's Algorithm"));
+				JRadioButtonMenuItem greedy=tasks.addRadioMenu(new SearchTask(new AStarSearch(AStarSearch.GREEDY), "Greedy Algorithm"));
+				JRadioButtonMenuItem astar=tasks.addRadioMenu(new SearchTask(new AStarSearch(), "A* Search"));
+				JRadioButtonMenuItem speed=tasks.addRadioMenu(new SearchTask(new AStarSearch(AStarSearch.SPEED_WEIGHTED), "Speed Weighted A*"));
+				search.add(breadth);
+				search.add(depth);
+				search.add(ds);
+				search.add(greedy);
+				search.add(astar);
+				search.add(speed);
+			}
+			JMenu nav=new JMenu("Navigation (InDev)");
+			{
+				nav.add(tasks.addRadioMenu(new Navigation(new AStarSearch(), "Shortest Path")));
+				nav.add(tasks.addRadioMenu(new Navigation(new AStarSearch(AStarSearch.SPEED_WEIGHTED), "Shortest Time")));
+			}
+			menu.add(file);
+			menu.add(edit);
+			menu.add(display);
+			menu.add(search);
+			menu.add(nav);
+		}
+		
+		
+		
+		model=new Model();
+		modelUI=new ModelUI(model);
+		{
+			modelUI.addMouseMotionListener(new MouseMotionAdapter() {
+				@Override
+				public void mouseDragged(MouseEvent e) {
+					tasks.onDrag(e);
+				}
+			});
+			modelUI.addMouseListener(new MouseAdapter() {
+				@Override
+				public void mouseReleased(MouseEvent e) {
+					tasks.onDragEnd(e);
+				}
+				
+				@Override
+				public void mousePressed(MouseEvent e) {
+					tasks.onDragStart(e);
+				}
+			});
+		}
+		
+		scaler=new Scaler(modelUI, 1, 10);
+		add(scaler);
+		
+		setGlassPane(panel);
+		setTitle("Gary Navigation");
+		setJMenuBar(menu);
+		setDefaultCloseOperation(EXIT_ON_CLOSE);
+		pack();
+		setVisible(true);
+		
+		open(new File("C:/Users/scamper/Documents/st.gnm"));
+	}
+
+	private void onOpenMenuAction(){
+		JFileChooser chooser=new JFileChooser();
+	    FileNameExtensionFilter filter=new FileNameExtensionFilter(
+	        "Gary Navigation Map Files", "gnm");
+	    chooser.setFileFilter(filter);
+	    int returnVal=chooser.showOpenDialog(this);
+	    if(returnVal==JFileChooser.APPROVE_OPTION){
+	    	open(chooser.getSelectedFile());
+	    }
+	}
+	
+	private void onSaveMenuAction(){
+		JFileChooser chooser=new JFileChooser();
+	    FileNameExtensionFilter filter=new FileNameExtensionFilter(
+	        "Gary Navigation Map Files", "gnm");
+	    chooser.setFileFilter(filter);
+	    int returnVal=chooser.showSaveDialog(this);
+	    if(returnVal==JFileChooser.APPROVE_OPTION){
+	    	save(chooser.getSelectedFile());
+	    }
+	}
+
+	private void save(File file) {
+		try {
+			MapFileTools.writeMap(file, model);
+		} catch (IOException e) {
+			JOptionPane.showMessageDialog(this, e.getMessage(), "Error while writing files", JOptionPane.ERROR_MESSAGE);
+		}
+	}
+
+	private void open(File file) {
+		try {
+			model=MapFileTools.readMap(file);
+			modelUI.setModel(model);
+		} catch (IOException e) {
+			JOptionPane.showMessageDialog(this, e.getMessage(), "Error while reading files", JOptionPane.ERROR_MESSAGE);
+		}
+	}
+	
+}

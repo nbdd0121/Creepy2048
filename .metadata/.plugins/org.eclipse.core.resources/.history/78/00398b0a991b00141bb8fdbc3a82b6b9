@@ -1,0 +1,15 @@
+package vad;
+
+public class TranspositionTableEntry {
+	int flag;
+	int value;
+	
+	public static final int PRECISE=0;
+	public static final int LOWER_BOUND=1;
+	public static final int UPPER_BOUND=2;
+	
+	public TranspositionTableEntry(int flag, int value){
+		this.flag=flag;
+		this.value=value;
+	}
+}

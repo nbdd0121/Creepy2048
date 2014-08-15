@@ -1,0 +1,5 @@
+package vad;
+
+public class TranspositionTableEntry {
+
+}

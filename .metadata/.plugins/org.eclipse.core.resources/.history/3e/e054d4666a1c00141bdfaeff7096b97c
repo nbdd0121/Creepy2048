@@ -1,0 +1,112 @@
+function adjustInputWidth(){
+	var input=$("#inputbox");
+	input.width($("body").width()-input.offset().left);
+}
+$(window).load(adjustInputWidth);
+(function(window, $){
+	var Terminal={};
+	Terminal.dev={};
+	window.Terminal=Terminal;
+})(window, jQuery);
+
+(function(term, $){
+	function StdOutFile(){
+		this.colorCode='<span class="color37 color40">';
+	}
+	StdOutFile.prototype.write=function write(data){
+		var that=this;
+		function genCode(str){
+			var seq=str.split("\033[");
+			var ret;
+			if(seq[0]){
+				ret=$(that.colorCode);
+				ret.text(seq[0]);
+			}else{
+				ret=$();
+			}
+			for(var seqNum=1;seqNum<seq.length;seqNum++){
+				var txt=seq[seqNum];
+				var realTextBegin=txt.indexOf("m");
+				var colorCode=txt.substr(0, realTextBegin).split(";");
+				if(colorCode=="0"){
+					that.colorCode='<span class="color37 color40">';
+				}else{
+					that.colorCode='<span class="color'+colorCode[1]+' color'+colorCode[2]+'">';
+				}
+				console.log(colorCode);
+				var jq=$(that.colorCode);
+				jq.text(txt.substr(realTextBegin+1));
+				ret=ret.add(jq);
+			}
+			return ret;
+		}
+		var datas=data.split("\n");
+		$("p:last-child").append(genCode(datas[0]));
+		for(var lineNum=1;lineNum<datas.length;lineNum++){
+			var line=datas[lineNum];
+			$("body").append("<p>");
+			$("p:last-child").append(genCode(line));
+		}
+		console.log(data);
+	};
+	term.dev.stdout={
+		open:function open(){
+			return new StdOutFile();
+		}
+	};
+})(Terminal, jQuery);
+
+(function(term, $){
+	function StdInFile(){
+	}
+	StdOutFile.prototype.read=function read(){
+		throw "Cannot perform read on stdout";
+	};
+	StdOutFile.prototype.write=function write(data){
+		var that=this;
+		function genCode(str){
+			var seq=str.split("\033[");
+			var ret;
+			if(seq[0]){
+				ret=$(that.colorCode);
+				ret.text(seq[0]);
+			}else{
+				ret=$();
+			}
+			for(var seqNum=1;seqNum<seq.length;seqNum++){
+				var txt=seq[seqNum];
+				var realTextBegin=txt.indexOf("m");
+				var colorCode=txt.substr(0, realTextBegin).split(";");
+				if(colorCode=="0"){
+					that.colorCode='<span class="color37 color40">';
+				}else{
+					that.colorCode='<span class="color'+colorCode[1]+' color'+colorCode[2]+'">';
+				}
+				console.log(colorCode);
+				var jq=$(that.colorCode);
+				jq.text(txt.substr(realTextBegin+1));
+				ret=ret.add(jq);
+			}
+			return ret;
+		}
+		var datas=data.split("\n");
+		$("p:last-child").append(genCode(datas[0]));
+		for(var lineNum=1;lineNum<datas.length;lineNum++){
+			var line=datas[lineNum];
+			$("body").append("<p>");
+			$("p:last-child").append(genCode(line));
+		}
+		console.log(data);
+	};
+	term.dev.stdout={
+		open:function open(){
+			return new StdOutFile();
+		}
+	};
+})(Terminal, jQuery);
+
+var stdout=Terminal.dev.stdout.open();
+$(window).load(function(){
+	stdout.write("Gary Guo <nbdd0121@hotmail.com>\nCopyright (c) 2014, Gary Guo. All rights reserved.\n");
+	stdout.write("\033[1;40;34m~ \033[1;40;31m$ ");
+});
